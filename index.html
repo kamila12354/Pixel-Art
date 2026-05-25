@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Mini Pixel Art Editor</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #222;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        #toolbar,
+        #info {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        #grid {
+            display: grid;
+            gap: 1px;
+        }
+
+        .cell {
+            width: 30px;
+            height: 30px;
+            background: white;
+            border: 1px solid #999;
+            box-sizing: border-box;
+        }
+
+        #eraser-btn.active {
+            background: crimson;
+            color: white;
+        }
+
+
+        #async-panel,
+        #palette-preview,
+        #status-panel {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .palette-color {
+            width: 28px;
+            height: 28px;
+            border: 1px solid white;
+            cursor: pointer;
+        }
+
+        button:disabled,
+        select:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+    </style>
+</head>
+
+<body>
+
+<div id="toolbar"></div>
+<div id="grid"></div>
+<div id="info"></div>
+
+<script>
+
+    const GRID_SIZE = 16;
+
+    let currentColor = "#000000";
+    let currentBrushSize = 1;
+    let isDrawing = false;
+    let eraserMode = false;
+
+    const toolbar = document.getElementById("toolbar");
+
+    const colorPicker = document.createElement("input");
+    colorPicker.type = "color";
+    colorPicker.id = "color-picker";
+    colorPicker.value = "#000000";
+
+    const brushSize = document.createElement("select");
+    brushSize.id = "brush-size";
+
+    const sizes = ["1×1", "2×2", "3×3"];
+
+    sizes.forEach((size, index) => {
+        const option = document.createElement("option");
+        option.value = index + 1;
+        option.textContent = size;
+        brushSize.appendChild(option);
+    });
+
+    const eraserBtn = document.createElement("button");
+    eraserBtn.id = "eraser-btn";
+    eraserBtn.textContent = "Gumka";
+
+    const clearBtn = document.createElement("button");
+    clearBtn.id = "clear-btn";
+    clearBtn.textContent = "Wyczyść";
+
+    toolbar.append(
+        colorPicker,
+        brushSize,
+        eraserBtn,
+        clearBtn
+    );
+
+    const grid = document.getElementById("grid");
+
+    grid.style.gridTemplateColumns = `repeat(${GRID_SIZE}, 30px)`;
+
+    for (let row = 0; row < GRID_SIZE; row++) {
+
+        for (let col = 0; col < GRID_SIZE; col++) {
+
+            const cell = document.createElement("div");
+
+            cell.classList.add("cell");
+
+            cell.dataset.row = row;
+            cell.dataset.col = col;
+
+            grid.appendChild(cell);
+        }
+    }
+
+    const info = document.getElementById("info");
+
+    const rowInfo = document.createElement("span");
+    rowInfo.innerHTML = `Wiersz: <span id="info-row">-</span>`;
+
+    const colInfo = document.createElement("span");
+    colInfo.innerHTML = `Kolumna: <span id="info-col">-</span>`;
+
+    const countInfo = document.createElement("span");
+    countInfo.innerHTML = `Aktywne: <span id="info-count">0</span>`;
+
+    info.append(
+        rowInfo,
+        colInfo,
+        countInfo
+    );
+
+    const infoRow = document.getElementById("info-row");
+    const infoCol = document.getElementById("info-col");
+    const infoCount = document.getElementById("info-count");
+
+    function getPaintColor() {
+        return eraserMode ? "#ffffff" : currentColor;
+    }
+
+    function paintCell(row, col) {
+
+        for (let r = 0; r < currentBrushSize; r++) {
+
+            for (let c = 0; c < currentBrushSize; c++) {
+
+                const targetRow = row + r;
+                const targetCol = col + c;
+
+                const targetCell = document.querySelector(
+                    `.cell[data-row="${targetRow}"][data-col="${targetCol}"]`
+                );
+
+                if (targetCell) {
+                    targetCell.style.backgroundColor = getPaintColor();
+                }
+            }
+        }
+
+        updateActiveCount();
+    }
+
+    function updateActiveCount() {
+
+        const cells = document.querySelectorAll(".cell");
+
+        let count = 0;
+
+        cells.forEach(cell => {
+
+            const color = getComputedStyle(cell).backgroundColor;
+
+            if (color !== "rgb(255, 255, 255)") {
+                count++;
+            }
+        });
+
+        infoCount.textContent = count;
+    }
+
+    function clearGrid() {
+
+        document.querySelectorAll(".cell").forEach(cell => {
+            cell.style.backgroundColor = "#ffffff";
+        });
+
+        updateActiveCount();
+    }
+
+    function toggleEraser() {
+
+        eraserMode = !eraserMode;
+
+        eraserBtn.classList.toggle("active");
+
+    }
+
+    grid.addEventListener("mousedown", (event) => {
+
+        if (!event.target.classList.contains("cell")) return;
+
+        isDrawing = true;
+
+        const row = Number(event.target.dataset.row);
+        const col = Number(event.target.dataset.col);
+
+        paintCell(row, col);
+    });
+
+    document.addEventListener("mouseup", () => {
+        isDrawing = false;
+    });
+
+    grid.addEventListener("mousemove", (event) => {
+
+        if (!isDrawing) return;
+
+        if (!event.target.classList.contains("cell")) return;
+
+        const row = Number(event.target.dataset.row);
+        const col = Number(event.target.dataset.col);
+
+        paintCell(row, col);
+    });
+
+    grid.addEventListener("mouseover", (event) => {
+
+        if (!event.target.classList.contains("cell")) return;
+
+        infoRow.textContent = event.target.dataset.row;
+        infoCol.textContent = event.target.dataset.col;
+    });
+
+    grid.addEventListener("dblclick", (event) => {
+
+        if (!event.target.classList.contains("cell")) return;
+
+        const row = Number(event.target.dataset.row);
+
+        for (let col = 0; col < GRID_SIZE; col++) {
+
+            const cell = document.querySelector(
+                `.cell[data-row="${row}"][data-col="${col}"]`
+            );
+
+            cell.style.backgroundColor = getPaintColor();
+        }
+
+        updateActiveCount();
+    });
+
+    grid.addEventListener("contextmenu", (event) => {
+
+        event.preventDefault();
+
+        if (!event.target.classList.contains("cell")) return;
+
+        event.target.style.backgroundColor = "#ffffff";
+
+        updateActiveCount();
+    });
+
+    document.addEventListener("keydown", (event) => {
+
+        const key = event.key.toLowerCase();
+
+        if (key === "e") {
+            toggleEraser();
+        }
+
+        if (key === "c") {
+            clearGrid();
+        }
+
+        if (key === "1") {
+            currentBrushSize = 1;
+            brushSize.value = 1;
+        }
+
+        if (key === "2") {
+            currentBrushSize = 2;
+            brushSize.value = 2;
+        }
+
+        if (key === "3") {
+            currentBrushSize = 3;
+            brushSize.value = 3;
+        }
+    });
+
+    colorPicker.oninput = function () {
+        currentColor = colorPicker.value;
+    };
+
+    brushSize.onchange = function () {
+        currentBrushSize = Number(brushSize.value);
+    };
+
+    eraserBtn.onclick = function () {
+        toggleEraser();
+    };
+
+    clearBtn.onclick = function () {
+        clearGrid();
+    };
+
+    grid.onclick = function(event) {
+
+        if (!event.target.classList.contains("cell")) return;
+
+        const row = Number(event.target.dataset.row);
+        const col = Number(event.target.dataset.col);
+
+        paintCell(row, col);
+    };
+
+    const asyncPanel = document.createElement("div");
+    asyncPanel.id = "async-panel";
+
+    const palettePreview = document.createElement("div");
+    palettePreview.id = "palette-preview";
+
+    const statusPanel = document.createElement("div");
+    statusPanel.id = "status-panel";
+
+    info.after(asyncPanel, palettePreview, statusPanel);
+
+    const paletteSelect = document.createElement("select");
+    paletteSelect.id = "palette-select";
+
+    ["Paleta 1", "Paleta 2", "Paleta 3"].forEach((name, index) => {
+        const option = document.createElement("option");
+        option.value = index + 1;
+        option.textContent = name;
+        paletteSelect.appendChild(option);
+    });
+
+    const loadPaletteBtn = document.createElement("button");
+    loadPaletteBtn.textContent = "Załaduj paletę";
+
+    const saveBtn = document.createElement("button");
+    saveBtn.textContent = "Zapisz";
+
+    const loadBtn = document.createElement("button");
+    loadBtn.textContent = "Wczytaj";
+
+    const parallelBtn = document.createElement("button");
+    parallelBtn.textContent = "3 palety równolegle";
+
+    const sequentialBtn = document.createElement("button");
+    sequentialBtn.textContent = "3 palety sekwencyjnie";
+
+    asyncPanel.append(
+        paletteSelect,
+        loadPaletteBtn,
+        saveBtn,
+        loadBtn,
+        parallelBtn,
+        sequentialBtn
+    );
+
+    const paletteStatus = document.createElement("span");
+    paletteStatus.textContent = "Paleta: gotowe";
+
+    const storageStatus = document.createElement("span");
+    storageStatus.textContent = "Zapis: brak";
+
+    const timeStatus = document.createElement("span");
+    timeStatus.textContent = "Czas: -";
+
+    const autoSaveStatus = document.createElement("span");
+    autoSaveStatus.textContent = "Auto-zapis: brak zmian";
+
+    statusPanel.append(
+        paletteStatus,
+        storageStatus,
+        timeStatus,
+        autoSaveStatus
+    );
+
+    async function fetchPalette(paletteId) {
+
+        const response = await fetch(
+            `http://localhost:3000/palettes/${paletteId}`
+        );
+
+        if (!response.ok) {
+            throw new Error(`Błąd HTTP: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        return data.colors;
+    }
+
+    function renderPalette(colors) {
+        palettePreview.innerHTML = "";
+
+        colors.forEach(color => {
+            const colorBtn = document.createElement("button");
+            colorBtn.classList.add("palette-color");
+            colorBtn.style.backgroundColor = color;
+            colorBtn.title = color;
+
+            colorBtn.onclick = function () {
+                currentColor = color;
+                colorPicker.value = color;
+            };
+
+            palettePreview.appendChild(colorBtn);
+        });
+    }
+
+    async function loadSelectedPalette() {
+        paletteSelect.disabled = true;
+        loadPaletteBtn.disabled = true;
+        loadPaletteBtn.textContent = "Ładowanie...";
+        paletteStatus.textContent = "Paleta: ładowanie...";
+
+        try {
+            const colors = await fetchPalette(paletteSelect.value);
+
+            renderPalette(colors);
+            paletteStatus.textContent = "Paleta: załadowana";
+        } catch (error) {
+            paletteStatus.textContent = `Paleta: ${error.message}`;
+        } finally {
+            paletteSelect.disabled = false;
+            loadPaletteBtn.disabled = false;
+            loadPaletteBtn.textContent = "Załaduj paletę";
+        }
+    }
+
+    function getGridState() {
+        return Array.from(document.querySelectorAll(".cell")).map(cell => {
+            return getComputedStyle(cell).backgroundColor;
+        });
+    }
+
+    function applyGridState(state) {
+        const cells = document.querySelectorAll(".cell");
+
+        cells.forEach((cell, index) => {
+            cell.style.backgroundColor = state[index] || "#ffffff";
+        });
+
+        updateActiveCount();
+    }
+
+    function saveGridState() {
+
+        const state = getGridState();
+
+        storageStatus.textContent = "Zapisywanie na serwerze...";
+
+        fetch("http://localhost:3000/images", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                grid: state
+            })
+        })
+            .then(response => {
+
+                if (!response.ok) {
+                    throw new Error(`Błąd HTTP: ${response.status}`);
+                }
+
+                return response.json();
+            })
+            .then(data => {
+
+                storageStatus.textContent =
+                    `Zapisano na serwerze ID: ${data.id}`;
+            })
+            .catch(error => {
+
+                storageStatus.textContent =
+                    `Błąd zapisu: ${error.message}`;
+            });
+    }
+
+    async function loadGridState() {
+        storageStatus.textContent = "Wczytywanie...";
+
+        try {
+            const response = await fetch(
+                "http://localhost:3000/images"
+            );
+
+            if (!response.ok) {
+                throw new Error(`Błąd HTTP: ${response.status}`);
+            }
+
+            const images = await response.json();
+
+            if (images.length === 0) {
+                storageStatus.textContent = "Brak zapisanych obrazków";
+                return;
+            }
+
+            const latestImage = images[images.length - 1];
+
+            applyGridState(latestImage.grid);
+            storageStatus.textContent = "Wczytano z serwera, GET OK";
+        } catch (error) {
+            storageStatus.textContent = `Wczytywanie: ${error.message}`;
+        }
+    }
+
+    async function loadAllPalettesParallel() {
+        const start = performance.now();
+        timeStatus.textContent = "Czas: ładowanie równoległe...";
+        paletteStatus.textContent = "Palety: ładowanie równoległe...";
+
+        try {
+            const palettes = await Promise.all([
+                fetchPalette(1),
+                fetchPalette(2),
+                fetchPalette(3)
+            ]);
+
+            renderPalette(palettes.flat());
+
+            const time = (performance.now() - start).toFixed(2);
+            timeStatus.textContent = `Równolegle: ${time} ms`;
+            paletteStatus.textContent = "Palety: załadowano 3 równolegle";
+        } catch (error) {
+            timeStatus.textContent = `Równolegle: ${error.message}`;
+            paletteStatus.textContent = `Palety: ${error.message}`;
+        }
+    }
+
+    async function loadAllPalettesSequentially() {
+        const start = performance.now();
+        timeStatus.textContent = "Czas: ładowanie sekwencyjne...";
+        paletteStatus.textContent = "Palety: ładowanie sekwencyjne...";
+
+        try {
+            const palette1 = await fetchPalette(1);
+            const palette2 = await fetchPalette(2);
+            const palette3 = await fetchPalette(3);
+
+            renderPalette([...palette1, ...palette2, ...palette3]);
+
+            const time = (performance.now() - start).toFixed(2);
+            timeStatus.textContent = `Sekwencyjnie: ${time} ms`;
+            paletteStatus.textContent = "Palety: załadowano 3 sekwencyjnie";
+        } catch (error) {
+            timeStatus.textContent = `Sekwencyjnie: ${error.message}`;
+            paletteStatus.textContent = `Palety: ${error.message}`;
+        }
+    }
+
+    let autoSaveTimer = null;
+
+    function scheduleAutoSave() {
+        autoSaveStatus.textContent = "Auto-zapis: oczekiwanie...";
+
+        clearTimeout(autoSaveTimer);
+
+        autoSaveTimer = setTimeout(() => {
+            autoSaveStatus.textContent = "Auto-zapis: zapisano";
+        }, 700);
+    }
+
+    const autoSaveObserver = new MutationObserver(mutations => {
+        const gridChanged = mutations.some(mutation => {
+            return mutation.type === "attributes"
+                && mutation.attributeName === "style"
+                && mutation.target.classList.contains("cell");
+        });
+
+        if (gridChanged) {
+            scheduleAutoSave();
+        }
+    });
+
+    autoSaveObserver.observe(grid, {
+        attributes: true,
+        subtree: true,
+        attributeFilter: ["style"]
+    });
+
+    loadPaletteBtn.onclick = function () {
+        loadSelectedPalette();
+    };
+
+    saveBtn.onclick = function () {
+        saveGridState();
+    };
+
+    loadBtn.onclick = function () {
+        loadGridState();
+    };
+
+    parallelBtn.onclick = function () {
+        loadAllPalettesParallel();
+    };
+
+    sequentialBtn.onclick = function () {
+        loadAllPalettesSequentially();
+    };
+
+</script>
+
+</body>
+</html>
