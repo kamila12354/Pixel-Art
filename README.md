@@ -115,3 +115,25 @@ curl -X DELETE http://localhost:3000/images/ID_OBRAZKA
 - Backend bez Express
 - ES Modules
 - Integracja z Pixel Art Editor# Pixel-Art
+
+# WebSocket
+
+## Typy wiadomości
+
+* join
+* snapshot
+* draw
+* clear
+* users
+* ping
+* pong
+* error
+
+## Decyzje architektoniczne
+
+WebSocket działa na tym samym porcie co serwer HTTP (3000). Dzięki temu klient korzysta z jednego adresu serwera i nie występują dodatkowe problemy związane z konfiguracją CORS.
+
+Serwer przechowuje wspólny stan siatki 16×16 oraz listę aktywnych użytkowników. Nowy klient po połączeniu otrzymuje pełny snapshot planszy i listę użytkowników.
+
+Klient wykorzystuje mechanizm reconnect z rosnącym interwałem (1s, 2s, 4s, 8s, maksymalnie 10s) oraz keepalive oparty o wiadomości ping/pong.
+

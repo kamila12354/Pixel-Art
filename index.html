@@ -179,6 +179,22 @@
                 }
             }
         }
+        // Zamiana współrzędnych (row, col) na indeks w tablicy
+        const index = row * 16 + col;
+        // Sprawdzenie czy połączenie WebSocket jest aktywne
+        if (
+            socket &&
+            socket.readyState === WebSocket.OPEN
+        ) {
+// Wysłanie informacji o zmianie koloru komórki do serwera
+            socket.send(
+                JSON.stringify({
+                    type: "draw",          // typ wiadomości
+                    index,                 // numer komórki na planszy
+                    color: getPaintColor() // wybrany kolor
+                })
+            );
+        }
 
         updateActiveCount();
     }
@@ -206,6 +222,18 @@
         document.querySelectorAll(".cell").forEach(cell => {
             cell.style.backgroundColor = "#ffffff";
         });
+        // Sprawdzenie czy połączenie WebSocket jest aktywne
+        if (
+            socket &&
+            socket.readyState === WebSocket.OPEN
+        ) {
+            // Wysłanie informacji o wyczyszczeniu planszy do serwera
+            socket.send(
+                JSON.stringify({
+                    type: "clear"
+                })
+            );
+        }
 
         updateActiveCount();
     }
@@ -626,6 +654,112 @@
     sequentialBtn.onclick = function () {
         loadAllPalettesSequentially();
     };
+
+
+
+    // ===== WEBSOCKET =====
+
+    // Obiekt przechowujący połączenie WebSocket
+    let socket;
+
+    // Czas oczekiwania przed ponowną próbą połączenia
+    let reconnectDelay = 1000;
+
+    // Pobranie nicku użytkownika przy uruchomieniu aplikacji
+    const nick = prompt("Podaj nick") || "Anonim";
+
+    // Funkcja nawiązująca połączenie z serwerem WebSocket
+    function connect() {
+
+        socket = new WebSocket("ws://localhost:3000");
+
+        // Wykonywane po poprawnym połączeniu
+        socket.onopen = () => {
+
+            // Reset czasu reconnect po udanym połączeniu
+            reconnectDelay = 1000;
+
+            // Wysłanie nicku do serwera
+            socket.send(JSON.stringify({
+                type: "join",
+                nick
+            }));
+        };
+
+        // Wykonywane po utracie połączenia
+        socket.onclose = () => {
+
+            // Ponowna próba połączenia po określonym czasie
+            setTimeout(connect, reconnectDelay);
+
+            // Zwiększanie czasu oczekiwania (max 10 sekund)
+            reconnectDelay = Math.min(reconnectDelay * 2, 10000);
+        };
+
+        // Obsługa wiadomości przychodzących z serwera
+        socket.onmessage = (event) => {
+
+            const msg = JSON.parse(event.data);
+
+            // Centralny dispatcher wiadomości
+            switch(msg.type) {
+
+                // Otrzymanie pełnego stanu planszy po połączeniu
+                case "snapshot":
+
+                    applyGridState(msg.grid);
+                    break;
+
+                // Aktualizacja pojedynczej komórki
+                case "draw":
+
+                    document.querySelectorAll(".cell")[msg.index]
+                        .style.backgroundColor = msg.color;
+
+                    break;
+
+                // Wyczyszczenie planszy
+                case "clear":
+
+                    clearGrid();
+                    break;
+
+                // Aktualizacja listy aktywnych użytkowników
+                case "users":
+
+                    console.log("Użytkownicy:", msg.users);
+                    break;
+
+                // Odpowiedź keepalive
+                case "pong":
+                    break;
+
+                // Komunikat błędu z serwera
+                case "error":
+
+                    alert(msg.message);
+                    break;
+            }
+        };
+    }
+
+    // Keepalive - wysyłanie ping co 10 sekund
+    setInterval(() => {
+
+        // Wysłanie ping tylko przy aktywnym połączeniu
+        if(socket && socket.readyState === WebSocket.OPEN){
+
+            socket.send(
+                JSON.stringify({
+                    type:"ping"
+                })
+            );
+        }
+
+    }, 10000);
+
+    // Uruchomienie pierwszego połączenia
+    connect();
 
 </script>
 
